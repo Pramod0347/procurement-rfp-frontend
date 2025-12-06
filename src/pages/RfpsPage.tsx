@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getAllRfps } from "../api/rfp";
-import type { Rfp } from "../types";
+import { getAllVendors } from "../api/vendor";
+import type { Rfp, Vendor } from "../types";
 import { RfpCreateModal } from "../components/RfpCreateModal";
 
 export function RfpsPage() {
@@ -174,6 +175,38 @@ type RfpInlineDetailsProps = {
 };
 
 function RfpInlineDetails({ rfp }: RfpInlineDetailsProps) {
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [vendorsError, setVendorsError] = useState<string | null>(null);
+  const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    async function loadVendors() {
+      try {
+        setVendorsLoading(true);
+        setVendorsError(null);
+        const data = await getAllVendors();
+        setVendors(data);
+        // later we’ll hydrate selectedVendorIds from backend RFP-vendor relation
+      } catch (err: any) {
+        console.error("Failed to load vendors", err);
+        setVendorsError(err.message ?? "Failed to load vendors");
+      } finally {
+        setVendorsLoading(false);
+      }
+    }
+
+    loadVendors();
+  }, []);
+
+  function toggleVendor(vendorId: string) {
+    setSelectedVendorIds((prev) =>
+      prev.includes(vendorId)
+        ? prev.filter((id) => id !== vendorId)
+        : [...prev, vendorId]
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
       {/* Overview */}
@@ -196,10 +229,7 @@ function RfpInlineDetails({ rfp }: RfpInlineDetailsProps) {
             label="Budget"
             value={rfp.budget != null ? String(rfp.budget) : "—"}
           />
-          <DetailField
-            label="Currency"
-            value={rfp.currency ?? "—"}
-          />
+          <DetailField label="Currency" value={rfp.currency ?? "—"} />
           <DetailField
             label="Delivery deadline"
             value={
@@ -227,8 +257,82 @@ function RfpInlineDetails({ rfp }: RfpInlineDetailsProps) {
         </div>
       </div>
 
+      {/* Vendors for this RFP */}
+      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            Vendors for this RFP
+          </p>
+          <span className="text-[11px] text-slate-500">
+            {selectedVendorIds.length} selected
+          </span>
+        </div>
+
+        <div className="mt-2 max-h-40 overflow-auto rounded-lg bg-white">
+          {vendorsLoading && (
+            <p className="px-3 py-2 text-xs text-slate-500">
+              Loading vendors…
+            </p>
+          )}
+
+          {vendorsError && (
+            <p className="px-3 py-2 text-xs text-red-600">
+              {vendorsError}
+            </p>
+          )}
+
+          {!vendorsLoading && !vendorsError && vendors.length === 0 && (
+            <p className="px-3 py-2 text-xs text-slate-500">
+              No vendors found yet. Add vendors from the Vendors page.
+            </p>
+          )}
+
+          {!vendorsLoading && !vendorsError && vendors.length > 0 && (
+            <ul className="divide-y divide-slate-100 text-xs">
+              {vendors.map((vendor) => {
+                const checked = selectedVendorIds.includes(vendor.id);
+                return (
+                  <li
+                    key={vendor.id}
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleVendor(vendor.id)}
+                      className="h-3 w-3 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-medium text-slate-800">
+                        {vendor.name}
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        {vendor.email}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-[11px] text-slate-500">
+            Email sending is not wired up yet. This selection will be used once
+            we add RFP invitations.
+          </p>
+          <button
+            disabled
+            className="inline-flex items-center rounded-full bg-slate-300 px-3 py-1 text-[11px] font-medium text-slate-700 opacity-80"
+          >
+            Send RFP to {selectedVendorIds.length || "—"} vendors
+          </button>
+        </div>
+      </div>
+
       {/* Structured spec */}
-      <div className="mt-3">
+      <div className="mt-4">
         <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
           Structured spec (raw)
         </p>
